@@ -2,6 +2,8 @@
 
 ## UNRELEASED
 
+- **Fix: Claude Code plugins no longer leak into pi sessions** — the provider and AskClaude paths now disable every plugin the user's `~/.claude` settings enable, matching the existing `CLAUDE.md` and skill-listing suppression. A plugin's hooks, commands and agents are written for Claude Code, not for the harness actually running the session: superpowers' `SessionStart` hook injected a skill index stamped `EXTREMELY_IMPORTANT` ordering the model to call a `Skill` tool pi does not expose. On one account this also cut 79 slash commands to 19 and 66 skills to 7. Disabled through the `--settings` flag tier, so the user's own Claude Code config is untouched.
+
 - **Fix: better isolate AskClaude tool (issue #59)** — AskClaude children no longer inherit the user's `~/.claude` `CLAUDE.md` files or skill listing, and now always get Claude Code's system prompt preset instead of only when pi-side skills exist. Thanks @JAtkinsonKO.
 - **Fix: Bogus debug message about "record count mismatch" after switching providers** — the post-rebuild integrity check did not take `@file` expansion into account when switching providers.
 
