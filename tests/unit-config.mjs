@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { claudeCodeSettings, loadConfig, markStartupNoticeShown } from "../src/config.js";
+import { claudeCodeSettings, disabledPlugins, loadConfig, markStartupNoticeShown } from "../src/config.js";
 
 function withTempHome(fn) {
 	const oldHome = process.env.HOME;
@@ -28,6 +28,40 @@ describe("claudeCodeSettings", () => {
 	it("allows auto-memory to be enabled", () => {
 		assert.deepEqual(claudeCodeSettings({ autoMemoryEnabled: true }), { autoMemoryEnabled: true });
 	});
+});
+
+describe("disabledPlugins", () => {
+	const writeSettings = (dir, name, enabledPlugins) => {
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(join(dir, name), JSON.stringify({ enabledPlugins }));
+	};
+
+	it("is empty when no Claude Code settings exist", () => withTempHome((home) =>
+		assert.deepEqual(disabledPlugins(home), {})));
+
+	it("maps every id across user, project and local settings to false", () => withTempHome((home) => {
+		const cwd = mkdtempSync(join(tmpdir(), "claude-bridge-cc-"));
+		try {
+			writeSettings(join(home, ".claude"), "settings.json", { "superpowers@official": true });
+			writeSettings(join(cwd, ".claude"), "settings.json", { "fmt@team": ["1.0.0"] });
+			writeSettings(join(cwd, ".claude"), "settings.local.json", { "lint@team": true });
+
+			// Already-false ids are kept: naming one costs nothing and omitting it
+			// would let a lower tier re-enable it.
+			assert.deepEqual(disabledPlugins(cwd), {
+				"superpowers@official": false, "fmt@team": false, "lint@team": false,
+			});
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	}));
+
+	it("ignores an unparseable settings file rather than failing the session", () => withTempHome((home) => {
+		const claudeDir = join(home, ".claude");
+		mkdirSync(claudeDir, { recursive: true });
+		writeFileSync(join(claudeDir, "settings.json"), "{ trailing, }");
+		assert.deepEqual(disabledPlugins(home), {});
+	}));
 });
 
 describe("loadConfig", () => {

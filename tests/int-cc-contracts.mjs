@@ -464,6 +464,28 @@ test("--strict-mcp-config suppresses filesystem MCP servers", { timeout: 120_000
 		`filesystem MCP servers survived --strict-mcp-config: ${JSON.stringify(after.mcp_servers)}`);
 });
 
+test("enabledPlugins:false in the --settings tier overrides plugins the user's settings enable", { timeout: 120_000 }, async (t) => {
+	// Settings precedence is user < project < local < flag < policy, and the SDK's
+	// `settings` option is the flag tier — so the bridge can suppress the user's
+	// plugins without writing to their config. Two properties this pins:
+	// only ids named explicitly are disabled (`{}` disables nothing, which is why
+	// disabledPlugins() enumerates), and `source` on an init plugin entry is the
+	// `plugin@marketplace` id that enabledPlugins keys on.
+	const env = { ...process.env, ENABLE_CLAUDEAI_MCP_SERVERS: "0", DISABLE_AUTO_COMPACT: "1" };
+	const base = { cwd: CWD, model: MODEL, tools: [], permissionMode: "bypassPermissions", env, maxTurns: 1 };
+
+	const before = await initOnly(base);
+	if ((before.plugins ?? []).length === 0) {
+		t.skip("no plugins enabled for this account — nothing to suppress");
+		return;
+	}
+
+	const enabledPlugins = Object.fromEntries(before.plugins.map((p) => [p.source, false]));
+	const after = await initOnly({ ...base, settings: { enabledPlugins } });
+	assert.deepEqual(after.plugins ?? [], [],
+		`plugins survived the flag tier: ${JSON.stringify(after.plugins)}`);
+});
+
 test("--thinking-display summarized is still an accepted flag value", { timeout: 120_000 }, async () => {
 	// The bridge appends this whenever an effort level is set. It is only a
 	// liveness check: an invalid value makes the CLI exit 1 (`full` does), and on
